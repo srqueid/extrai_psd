@@ -648,6 +648,30 @@
       padding: 4rem 1rem;
       color: var(--text-muted);
     }
+
+    /* Peças Renderizáveis na Sidebar */
+    .renderable-piece-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .renderable-piece-item:hover {
+      background: rgba(30, 41, 59, 0.9);
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    .renderable-piece-item.active {
+      border-color: var(--primary-light);
+      background: rgba(56, 189, 248, 0.1);
+    }
   </style>
 </head>
 <body>
@@ -704,6 +728,9 @@
         </div>
 
         <div style="display: flex; gap: 0.75rem; align-items: center;">
+          <button class="btn btn-outline-primary btn-sm" onclick="switchTab('html')">
+            🌐 Visualizar Render HTML
+          </button>
           <button class="btn btn-outline-primary btn-sm" onclick="downloadCompositeImage()">
             🖼️ Baixar Composto
           </button>
@@ -714,6 +741,9 @@
       <nav class="tabs-nav">
         <button class="tab-btn active" id="tabLayersBtn" onclick="switchTab('layers')">
           📑 Camadas (<span id="visibleLayerCount">0</span>)
+        </button>
+        <button class="tab-btn" id="tabHtmlBtn" onclick="switchTab('html')">
+          🌐 Render HTML (Reconstrução)
         </button>
         <button class="tab-btn" id="tabCompositeBtn" onclick="switchTab('composite')">
           👁️ Imagem Completa (Renderizada)
@@ -782,7 +812,10 @@
               </label>
             </div>
 
-            <div style="margin-left: auto; display: flex; gap: 0.75rem;">
+            <div style="margin-left: auto; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <button class="btn btn-secondary" onclick="exportHtmlZip()" title="Gera index.html + style.css + pasta images/">
+                🌐 Exportar HTML (.ZIP)
+              </button>
               <button class="btn btn-secondary" onclick="openFolderExportModal()">
                 📁 Salvar em Pasta Local
               </button>
@@ -797,6 +830,108 @@
         <section class="layers-grid" id="layersGrid">
           <!-- Cards injetados via JavaScript -->
         </section>
+      </div>
+
+      <!-- Panel: Render HTML (Reconstrução) -->
+      <div id="tabHtmlContent" style="display: none;">
+        <div class="html-render-header" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;">
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <span style="font-weight: 600; font-size: 0.95rem;">🌐 Reconstrução HTML do PSD</span>
+            <span class="badge badge-green" id="htmlLayersCountBadge">0 peças</span>
+            <span class="badge badge-blue" id="htmlCanvasSizeBadge">0 × 0 px</span>
+            
+            <label style="font-size: 0.825rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-left: 6px;">
+              <span>Enquadramento:</span>
+              <select id="htmlFitMode" onchange="refreshHtmlPreview()" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--bg-surface); border: 1px solid var(--border-color); color: #fff; border-radius: 4px;">
+                <option value="true" selected>Ajustado às Peças Selecionadas (Exato)</option>
+                <option value="false">Canvas Completo do PSD</option>
+              </select>
+            </label>
+
+            <label style="font-size: 0.825rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+              <span>Modo Mobile:</span>
+              <select id="htmlMobileMode" onchange="refreshHtmlPreview()" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--bg-surface); border: 1px solid var(--border-color); color: #fff; border-radius: 4px;">
+                <option value="stack" selected>📱 Empilhamento Adaptativo (Stack)</option>
+                <option value="proportional">📐 Proporcional Absoluto (Escala)</option>
+              </select>
+            </label>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="refreshHtmlPreview()" title="Recarrega o HTML com a seleção atual de camadas">
+              🔄 Atualizar Render
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="openCodeModal()" title="Exibir e copiar código HTML e CSS gerado">
+              📋 Ver Código HTML/CSS
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="openFolderHtmlExportModal()">
+              📁 Salvar em Pasta Local
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="exportHtmlSingle()">
+              📄 Baixar .HTML Único (Base64)
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="exportHtmlZip()">
+              📦 Baixar Pacote HTML (.ZIP)
+            </button>
+          </div>
+        </div>
+
+        <!-- Layout dividido: Peças Renderizáveis (Esquerda) e Preview Responsivo (Direita) -->
+        <div style="display: grid; grid-template-columns: 310px 1fr; gap: 16px; align-items: start;">
+          
+          <!-- Coluna 1: Lista e Seleção de Peças Renderizáveis -->
+          <aside style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-weight: 600; font-size: 0.9rem; color: #fff;">🧩 Peças no Render</span>
+              <span class="badge badge-green" id="renderableListCountBadge">0 ativas</span>
+            </div>
+            
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">
+              Marque ou desmarque para definir exatamente quais peças participam do HTML:
+            </p>
+
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-secondary btn-sm" style="flex: 1; padding: 4px 6px; font-size: 0.72rem;" onclick="setAllRenderable(true)">Todas</button>
+              <button class="btn btn-secondary btn-sm" style="flex: 1; padding: 4px 6px; font-size: 0.72rem;" onclick="setAllRenderable(false)">Nenhuma</button>
+              <button class="btn btn-secondary btn-sm" style="flex: 1; padding: 4px 6px; font-size: 0.72rem;" onclick="setRenderableOnlyVisible()">Visíveis</button>
+            </div>
+
+            <div id="renderablePiecesList" style="max-height: 580px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px;">
+              <!-- Injetado dinamicamente via JS -->
+            </div>
+          </aside>
+
+          <!-- Coluna 2: Preview Interativo e Simulador -->
+          <div style="display: flex; flex-direction: column; min-width: 0;">
+            <!-- Barra de Simulação de Viewport (Web vs Mobile) -->
+            <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid var(--border-color); border-bottom: none; border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 0.6rem 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">Simulador de Tela:</span>
+                <button class="btn btn-sm btn-outline-primary device-sim-btn" id="btnSimDesktop" onclick="setSimulatedViewport('100%', this)">
+                  🖥️ Web (100%)
+                </button>
+                <button class="btn btn-sm btn-secondary device-sim-btn" id="btnSimTablet" onclick="setSimulatedViewport('768px', this)">
+                  💻 Tablet (768px)
+                </button>
+                <button class="btn btn-sm btn-secondary device-sim-btn" id="btnSimMobile" onclick="setSimulatedViewport('375px', this)">
+                  📱 Mobile (375px)
+                </button>
+                <button class="btn btn-sm btn-secondary device-sim-btn" id="btnSimMobileLg" onclick="setSimulatedViewport('414px', this)">
+                  📱 Mobile Grande (414px)
+                </button>
+              </div>
+              <a id="btnOpenHtmlTab" href="#" target="_blank" class="btn btn-outline-primary btn-sm" style="padding: 2px 8px; font-size: 0.75rem;">
+                ↗️ Abrir em Nova Aba
+              </a>
+            </div>
+
+            <!-- Frame da página HTML renderizada -->
+            <div id="iframeContainerWrapper" style="background: #090d16; border: 1px solid var(--border-color); border-radius: 0 0 var(--radius-md) var(--radius-md); overflow: hidden; box-shadow: var(--shadow-lg); min-height: 550px; display: flex; flex-direction: column; width: 100%; transition: max-width 0.3s ease; margin: 0 auto;">
+              <iframe id="htmlPreviewFrame" style="width: 100%; height: 650px; border: none; background: #0f172a;" src="about:blank"></iframe>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       <!-- Panel: Imagem Completa (Composite) -->
@@ -832,6 +967,50 @@
     </div>
   </div>
 
+  <!-- Modal para Salvar HTML em Pasta Local -->
+  <div class="modal-overlay" id="folderHtmlModal">
+    <div class="modal">
+      <h3 class="modal-title">Salvar Pacote HTML em Pasta Local</h3>
+      <div class="modal-body">
+        <p>Informe o caminho da pasta no computador para salvar o <code>index.html</code>, <code>style.css</code> e a pasta <code>images/</code>:</p>
+        <input type="text" id="localFolderHtmlPath" placeholder="Ex: C:\Sites\MeuBanner" style="width: 100%;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; margin-top: 4px;">
+          <input type="checkbox" id="checkEmbedBase64Local"> Incorporar imagens em Base64 (arquivo único index.html sem pasta de imagens)
+        </label>
+        <small style="color: var(--text-muted);">Os arquivos serão gravados prontos para abertura imediata no navegador.</small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeFolderHtmlExportModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btnConfirmFolderHtmlExport" onclick="confirmFolderHtmlExport()">Salvar Pacote HTML</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Visualizar e Copiar Código HTML/CSS -->
+  <div class="modal-overlay" id="codeModal">
+    <div class="modal" style="max-width: 800px; width: 92%;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 class="modal-title">Código Fonte da Composição</h3>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn btn-sm btn-outline-primary" id="tabCodeHtmlBtn" onclick="switchCodeTab('html')">HTML</button>
+          <button class="btn btn-sm btn-secondary" id="tabCodeCssBtn" onclick="switchCodeTab('css')">CSS</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="codeHtmlView">
+          <textarea id="codeHtmlArea" readonly style="width: 100%; height: 350px; background: #0b1120; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: vertical;"></textarea>
+        </div>
+        <div id="codeCssView" style="display: none;">
+          <textarea id="codeCssArea" readonly style="width: 100%; height: 350px; background: #0b1120; color: #34d399; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: vertical;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeCodeModal()">Fechar</button>
+        <button class="btn btn-primary" onclick="copyCurrentCode()">📋 Copiar Código</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Container de Toasts -->
   <div class="toast-container" id="toastContainer"></div>
 
@@ -842,6 +1021,7 @@
     let layers = [];
     let selectedIndices = new Set();
     let currentTab = 'layers';
+    let layerConfigs = {};
 
     // Drag and Drop
     const dropzone = document.getElementById('dropzone');
@@ -935,6 +1115,7 @@
       // Atualiza imagem de composite
       document.getElementById('compositeFullImage').src = `/api/preview/${currentSessionId}?t=${Date.now()}`;
 
+      renderPiecesSidebar();
       applyFilters();
       updateSelectedCount();
     }
@@ -944,6 +1125,7 @@
       psdData = null;
       layers = [];
       selectedIndices.clear();
+      layerConfigs = {};
 
       document.getElementById('uploadSection').style.display = 'block';
       document.getElementById('workspaceSection').style.display = 'none';
@@ -955,20 +1137,33 @@
     function switchTab(tab) {
       currentTab = tab;
       const tabLayersBtn = document.getElementById('tabLayersBtn');
+      const tabHtmlBtn = document.getElementById('tabHtmlBtn');
       const tabCompositeBtn = document.getElementById('tabCompositeBtn');
+
       const tabLayersContent = document.getElementById('tabLayersContent');
+      const tabHtmlContent = document.getElementById('tabHtmlContent');
       const tabCompositeContent = document.getElementById('tabCompositeContent');
+
+      // Reset active states
+      tabLayersBtn.classList.remove('active');
+      tabHtmlBtn.classList.remove('active');
+      tabCompositeBtn.classList.remove('active');
+
+      tabLayersContent.style.display = 'none';
+      tabHtmlContent.style.display = 'none';
+      tabCompositeContent.style.display = 'none';
 
       if (tab === 'layers') {
         tabLayersBtn.classList.add('active');
-        tabCompositeBtn.classList.remove('active');
         tabLayersContent.style.display = 'block';
-        tabCompositeContent.style.display = 'none';
-      } else {
+      } else if (tab === 'html') {
+        tabHtmlBtn.classList.add('active');
+        tabHtmlContent.style.display = 'block';
+        renderPiecesSidebar();
+        loadHtmlPreview();
+      } else if (tab === 'composite') {
         tabCompositeBtn.classList.add('active');
-        tabLayersBtn.classList.remove('active');
         tabCompositeContent.style.display = 'block';
-        tabLayersContent.style.display = 'none';
       }
     }
 
@@ -1064,6 +1259,41 @@
               ⬇️ Baixar
             </button>
           </div>
+
+          <!-- Configuração Web / Mobile individual da peça -->
+          <div style="padding: 0.5rem 0.75rem; background: rgba(15, 23, 42, 0.45); border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 0.72rem; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #fff; font-weight: 500;">
+                <input type="checkbox" id="render-toggle-${layer.index}" ${isSelected ? 'checked' : ''} onchange="toggleRenderablePiece(${layer.index}, this.checked, event)" style="width: 15px; height: 15px; accent-color: var(--primary);">
+                <span>🌐 Renderizar no HTML</span>
+              </label>
+              <span class="badge ${isSelected ? 'badge-green' : 'badge-gray'}" id="badge-render-${layer.index}">${isSelected ? 'Renderizável' : 'Ignorado'}</span>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="color: var(--primary-light); font-weight: 500;">Exibir em:</span>
+              <select onchange="updateLayerConfig(${layer.index}, 'target', this.value)" style="padding: 2px 4px; font-size: 0.72rem; background: #0f172a; border: 1px solid var(--border-color); color: #fff; border-radius: 4px;">
+                <option value="all" ${(layerConfigs[layer.index]?.target || 'all') === 'all' ? 'selected' : ''}>🖥️+📱 Ambos</option>
+                <option value="desktop" ${layerConfigs[layer.index]?.target === 'desktop' ? 'selected' : ''}>🖥️ Apenas Web</option>
+                <option value="mobile" ${layerConfigs[layer.index]?.target === 'mobile' ? 'selected' : ''}>📱 Apenas Mobile</option>
+              </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+              <select title="Comportamento no Mobile" onchange="updateLayerConfig(${layer.index}, 'mobile_behavior', this.value)" style="padding: 2px 4px; font-size: 0.72rem; background: #0f172a; border: 1px solid var(--border-color); color: #fff; border-radius: 4px;">
+                <option value="auto" ${(layerConfigs[layer.index]?.mobile_behavior || 'auto') === 'auto' ? 'selected' : ''}>Auto (Smart)</option>
+                <option value="stack" ${layerConfigs[layer.index]?.mobile_behavior === 'stack' ? 'selected' : ''}>Vertical (Stack)</option>
+                <option value="absolute" ${layerConfigs[layer.index]?.mobile_behavior === 'absolute' ? 'selected' : ''}>Absoluto</option>
+                <option value="bg" ${layerConfigs[layer.index]?.mobile_behavior === 'bg' ? 'selected' : ''}>Fundo (Cover)</option>
+                <option value="hide" ${layerConfigs[layer.index]?.mobile_behavior === 'hide' ? 'selected' : ''}>Ocultar Mobile</option>
+              </select>
+              <select title="Alinhamento no Mobile" onchange="updateLayerConfig(${layer.index}, 'mobile_align', this.value)" style="padding: 2px 4px; font-size: 0.72rem; background: #0f172a; border: 1px solid var(--border-color); color: #fff; border-radius: 4px;">
+                <option value="center" ${(layerConfigs[layer.index]?.mobile_align || 'center') === 'center' ? 'selected' : ''}>Centro</option>
+                <option value="full" ${layerConfigs[layer.index]?.mobile_align === 'full' ? 'selected' : ''}>Largura 100%</option>
+                <option value="left" ${layerConfigs[layer.index]?.mobile_align === 'left' ? 'selected' : ''}>Esquerda</option>
+                <option value="right" ${layerConfigs[layer.index]?.mobile_align === 'right' ? 'selected' : ''}>Direita</option>
+              </select>
+            </div>
+          </div>
         `;
 
         container.appendChild(card);
@@ -1072,18 +1302,44 @@
 
     function toggleSelectLayer(index, event) {
       if (event) event.stopPropagation();
+      const willBeSelected = !selectedIndices.has(index);
+      toggleRenderablePiece(index, willBeSelected);
+    }
 
-      if (selectedIndices.has(index)) {
-        selectedIndices.delete(index);
-      } else {
+    function toggleRenderablePiece(index, isChecked, event) {
+      if (event) event.stopPropagation();
+
+      if (isChecked) {
         selectedIndices.add(index);
+      } else {
+        selectedIndices.delete(index);
       }
 
+      // Atualiza o item na sidebar de peças se presente
+      const sidebarItem = document.getElementById(`sidebar-piece-${index}`);
+      if (sidebarItem) {
+        const cb = sidebarItem.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = isChecked;
+        if (isChecked) {
+          sidebarItem.classList.add('active');
+        } else {
+          sidebarItem.classList.remove('active');
+        }
+      }
+
+      // Atualiza o card da camada no grid se visível
       const card = document.getElementById(`layer-card-${index}`);
       if (card) {
-        const checkbox = card.querySelector('.layer-checkbox');
-        if (checkbox) checkbox.checked = selectedIndices.has(index);
-        if (selectedIndices.has(index)) {
+        const topCb = card.querySelector('.layer-checkbox');
+        if (topCb) topCb.checked = isChecked;
+        const renderCb = document.getElementById(`render-toggle-${index}`);
+        if (renderCb) renderCb.checked = isChecked;
+        const badgeRender = document.getElementById(`badge-render-${index}`);
+        if (badgeRender) {
+          badgeRender.className = isChecked ? 'badge badge-green' : 'badge badge-gray';
+          badgeRender.textContent = isChecked ? 'Renderizável' : 'Ignorado';
+        }
+        if (isChecked) {
           card.classList.add('selected');
         } else {
           card.classList.remove('selected');
@@ -1091,20 +1347,78 @@
       }
 
       updateSelectedCount();
+
+      // Se a aba ativa for o Render HTML, recarrega o preview ao vivo
+      if (currentTab === 'html') {
+        loadHtmlPreview();
+      }
+    }
+
+    function renderPiecesSidebar() {
+      const container = document.getElementById('renderablePiecesList');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const renderableLayers = layers.filter(l => l.has_pixels && !l.is_group);
+
+      if (renderableLayers.length === 0) {
+        container.innerHTML = `<div style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.8rem;">Nenhuma peça disponível para renderização.</div>`;
+        return;
+      }
+
+      renderableLayers.forEach(layer => {
+        const isSelected = selectedIndices.has(layer.index);
+        const row = document.createElement('div');
+        row.className = `renderable-piece-item ${isSelected ? 'active' : ''}`;
+        row.id = `sidebar-piece-${layer.index}`;
+        row.onclick = (e) => {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+          toggleRenderablePiece(layer.index, !selectedIndices.has(layer.index));
+        };
+
+        const target = layerConfigs[layer.index]?.target || 'all';
+        const targetBadge = target === 'desktop' ? '🖥️ Web' : (target === 'mobile' ? '📱 Mobile' : '🖥️+📱');
+
+        row.innerHTML = `
+          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleRenderablePiece(${layer.index}, this.checked, event)" style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary);">
+          <div style="width: 32px; height: 32px; min-width: 32px; background: rgba(0,0,0,0.4); border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid rgba(255,255,255,0.08);">
+            <img src="/api/thumbnail/${currentSessionId}/${layer.index}" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 0.78rem; font-weight: 500; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(layer.name)}">${escapeHtml(layer.name)}</span>
+            <span style="font-size: 0.68rem; color: var(--text-muted);">${layer.width} × ${layer.height} px</span>
+          </div>
+          <span class="badge ${isSelected ? 'badge-blue' : 'badge-gray'}" style="font-size: 0.65rem; padding: 2px 5px;">${targetBadge}</span>
+        `;
+
+        container.appendChild(row);
+      });
+
+      const countBadge = document.getElementById('renderableListCountBadge');
+      if (countBadge) {
+        countBadge.textContent = `${selectedIndices.size} ativas`;
+      }
     }
 
     function selectAllLayers(selectAll) {
       if (selectAll) {
-        layers.forEach(l => selectedIndices.add(l.index));
+        layers.forEach(l => {
+          if (l.has_pixels && !l.is_group) selectedIndices.add(l.index);
+        });
       } else {
         selectedIndices.clear();
       }
       applyFilters();
+      renderPiecesSidebar();
       updateSelectedCount();
+      if (currentTab === 'html') {
+        loadHtmlPreview();
+      }
     }
 
     function invertSelection() {
       layers.forEach(l => {
+        if (!l.has_pixels || l.is_group) return;
         if (selectedIndices.has(l.index)) {
           selectedIndices.delete(l.index);
         } else {
@@ -1112,11 +1426,40 @@
         }
       });
       applyFilters();
+      renderPiecesSidebar();
       updateSelectedCount();
+      if (currentTab === 'html') {
+        loadHtmlPreview();
+      }
+    }
+
+    function setAllRenderable(enableAll) {
+      selectAllLayers(enableAll);
+    }
+
+    function setRenderableOnlyVisible() {
+      selectedIndices.clear();
+      layers.forEach(l => {
+        if (l.visible && l.has_pixels && !l.is_group) {
+          selectedIndices.add(l.index);
+        }
+      });
+      applyFilters();
+      renderPiecesSidebar();
+      updateSelectedCount();
+      if (currentTab === 'html') {
+        loadHtmlPreview();
+      }
     }
 
     function updateSelectedCount() {
-      document.getElementById('selectedCountBadge').textContent = selectedIndices.size;
+      const count = selectedIndices.size;
+      const countBadge = document.getElementById('selectedCountBadge');
+      if (countBadge) countBadge.textContent = count;
+      const htmlCountBadge = document.getElementById('htmlLayersCountBadge');
+      if (htmlCountBadge) htmlCountBadge.textContent = `${count} peças selecionadas`;
+      const renderableListBadge = document.getElementById('renderableListCountBadge');
+      if (renderableListBadge) renderableListBadge.textContent = `${count} ativas`;
     }
 
     // Exportações
@@ -1256,6 +1599,308 @@
         btn.disabled = false;
         btn.innerHTML = originalText;
       }
+    }
+
+    // ==========================================
+    // FUNÇÕES DE PREVIEW E EXPORTAÇÃO HTML
+    // ==========================================
+
+    let htmlCodeCache = { html: '', css: '' };
+    let currentCodeTab = 'html';
+
+    function updateLayerConfig(index, key, value) {
+      if (!layerConfigs[index]) {
+        layerConfigs[index] = { target: 'all', mobile_behavior: 'auto', mobile_align: 'center' };
+      }
+      layerConfigs[index][key] = value;
+      if (key === 'target') {
+        renderPiecesSidebar();
+      }
+      // Atualiza o preview se a aba HTML estiver aberta
+      if (currentTab === 'html') {
+        loadHtmlPreview();
+      }
+    }
+
+    function setSimulatedViewport(width, btn) {
+      document.querySelectorAll('.device-sim-btn').forEach(b => {
+        b.className = 'btn btn-sm btn-secondary device-sim-btn';
+      });
+      if (btn) {
+        btn.className = 'btn btn-sm btn-outline-primary device-sim-btn';
+      }
+      const wrapper = document.getElementById('iframeContainerWrapper');
+      wrapper.style.maxWidth = width;
+      wrapper.style.margin = '0 auto';
+
+      const frame = document.getElementById('htmlPreviewFrame');
+      if (frame && frame.contentWindow && typeof frame.contentWindow.setDeviceView === 'function') {
+        if (width === '375px' || width === '414px') {
+          frame.contentWindow.setDeviceView('mobile');
+        } else if (width === '100%') {
+          frame.contentWindow.setDeviceView('desktop');
+        } else {
+          frame.contentWindow.setDeviceView('auto');
+        }
+      }
+    }
+
+    async function loadHtmlPreview() {
+      if (!currentSessionId) return;
+
+      const fitMode = document.getElementById('htmlFitMode')?.value !== 'false';
+      const mobileMode = document.getElementById('htmlMobileMode')?.value || 'stack';
+      const frame = document.getElementById('htmlPreviewFrame');
+      const openBtn = document.getElementById('btnOpenHtmlTab');
+
+      const selectedArray = Array.from(selectedIndices);
+      document.getElementById('htmlLayersCountBadge').textContent = `${selectedArray.length} peças selecionadas`;
+
+      // Define URL para abrir em nova aba trazendo apenas as selecionadas no tamanho certo
+      const previewUrl = `/api/html/preview/${currentSessionId}?selected=${selectedArray.join(',')}&fit=${fitMode}&mobile_mode=${mobileMode}&t=${Date.now()}`;
+      openBtn.href = previewUrl;
+
+      // Recarrega o iframe via POST para enviar a lista exata de camadas selecionadas e regras responsivas
+      try {
+        const resp = await fetch(`/api/html/preview/${currentSessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            selected_indices: selectedArray,
+            fit_to_selection: fitMode,
+            mobile_mode: mobileMode,
+            layer_configs: layerConfigs
+          })
+        });
+        const html = await resp.text();
+        frame.srcdoc = html;
+      } catch (err) {
+        console.error('Erro ao carregar preview HTML:', err);
+        frame.src = previewUrl;
+      }
+    }
+
+    function refreshHtmlPreview() {
+      showToast('Atualizando render HTML com camadas e regras responsivas...', 'info');
+      loadHtmlPreview();
+    }
+
+    async function exportHtmlZip() {
+      if (!currentSessionId) return;
+      if (selectedIndices.size === 0) {
+        showToast('Selecione pelo menos uma camada para gerar o HTML!', 'error');
+        return;
+      }
+
+      const fitMode = document.getElementById('htmlFitMode')?.value !== 'false';
+      const mobileMode = document.getElementById('htmlMobileMode')?.value || 'stack';
+      showToast('Gerando pacote HTML renderizável (.ZIP)...', 'info');
+
+      try {
+        const resp = await fetch('/api/html/export/zip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            selected_indices: Array.from(selectedIndices),
+            fit_to_selection: fitMode,
+            mobile_mode: mobileMode,
+            layer_configs: layerConfigs
+          })
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json();
+          throw new Error(errData.error || 'Erro ao exportar ZIP de HTML');
+        }
+
+        const blob = await resp.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${psdData.filename.replace(/\.[^/.]+$/, "")}_html_renderizavel.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        showToast('Pacote HTML (.ZIP) baixado com sucesso!', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function exportHtmlSingle() {
+      if (!currentSessionId) return;
+      if (selectedIndices.size === 0) {
+        showToast('Selecione pelo menos uma camada para gerar o HTML!', 'error');
+        return;
+      }
+
+      const fitMode = document.getElementById('htmlFitMode')?.value !== 'false';
+      const mobileMode = document.getElementById('htmlMobileMode')?.value || 'stack';
+      showToast('Gerando arquivo HTML único (Base64)...', 'info');
+
+      try {
+        const resp = await fetch('/api/html/export/single', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            selected_indices: Array.from(selectedIndices),
+            fit_to_selection: fitMode,
+            mobile_mode: mobileMode,
+            layer_configs: layerConfigs
+          })
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json();
+          throw new Error(errData.error || 'Erro ao exportar HTML único');
+        }
+
+        const blob = await resp.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${psdData.filename.replace(/\.[^/.]+$/, "")}_reconstrucao.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        showToast('Arquivo HTML único baixado com sucesso!', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      }
+    }
+
+    function openFolderHtmlExportModal() {
+      if (selectedIndices.size === 0) {
+        showToast('Selecione pelo menos uma camada para salvar o HTML!', 'error');
+        return;
+      }
+      document.getElementById('folderHtmlModal').classList.add('open');
+    }
+
+    function closeFolderHtmlExportModal() {
+      document.getElementById('folderHtmlModal').classList.remove('open');
+    }
+
+    async function confirmFolderHtmlExport() {
+      const folderPath = document.getElementById('localFolderHtmlPath').value.trim();
+      if (!folderPath) {
+        showToast('Por favor, informe a pasta de destino!', 'error');
+        return;
+      }
+
+      const embedBase64 = document.getElementById('checkEmbedBase64Local').checked;
+      const fitMode = document.getElementById('htmlFitMode')?.value !== 'false';
+      const mobileMode = document.getElementById('htmlMobileMode')?.value || 'stack';
+      const btn = document.getElementById('btnConfirmFolderHtmlExport');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> Gravando arquivos...`;
+
+      try {
+        const resp = await fetch('/api/html/export/folder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            output_dir: folderPath,
+            selected_indices: Array.from(selectedIndices),
+            embed_base64: embedBase64,
+            fit_to_selection: fitMode,
+            mobile_mode: mobileMode,
+            layer_configs: layerConfigs
+          })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.error || 'Erro ao salvar HTML na pasta');
+        }
+
+        closeFolderHtmlExportModal();
+        showToast(`HTML gravado com sucesso em: ${data.output_dir}`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    async function openCodeModal() {
+      if (!currentSessionId) return;
+
+      const fitMode = document.getElementById('htmlFitMode')?.value !== 'false';
+      const mobileMode = document.getElementById('htmlMobileMode')?.value || 'stack';
+      showToast('Obtendo código fonte da composição...', 'info');
+      try {
+        const resp = await fetch(`/api/html/code/${currentSessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            selected_indices: Array.from(selectedIndices),
+            fit_to_selection: fitMode,
+            mobile_mode: mobileMode,
+            layer_configs: layerConfigs
+          })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Erro ao obter código');
+
+        htmlCodeCache = { html: data.html, css: data.css };
+        document.getElementById('codeHtmlArea').value = data.html;
+        document.getElementById('codeCssArea').value = data.css;
+
+        switchCodeTab('html');
+        document.getElementById('codeModal').classList.add('open');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      }
+    }
+
+    function closeCodeModal() {
+      document.getElementById('codeModal').classList.remove('open');
+    }
+
+    function switchCodeTab(tab) {
+      currentCodeTab = tab;
+      const btnHtml = document.getElementById('tabCodeHtmlBtn');
+      const btnCss = document.getElementById('tabCodeCssBtn');
+      const viewHtml = document.getElementById('codeHtmlView');
+      const viewCss = document.getElementById('codeCssView');
+
+      if (tab === 'html') {
+        btnHtml.className = 'btn btn-sm btn-outline-primary';
+        btnCss.className = 'btn btn-sm btn-secondary';
+        viewHtml.style.display = 'block';
+        viewCss.style.display = 'none';
+      } else {
+        btnCss.className = 'btn btn-sm btn-outline-primary';
+        btnHtml.className = 'btn btn-sm btn-secondary';
+        viewCss.style.display = 'block';
+        viewHtml.style.display = 'none';
+      }
+    }
+
+    function copyCurrentCode() {
+      const textToCopy = currentCodeTab === 'html' ? htmlCodeCache.html : htmlCodeCache.css;
+      if (!textToCopy) return;
+
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        showToast(`Código ${currentCodeTab.toUpperCase()} copiado para a área de transferência!`, 'success');
+      }).catch(err => {
+        showToast('Não foi possível copiar automaticamente.', 'error');
+      });
     }
 
     // Toast Utility

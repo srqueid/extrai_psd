@@ -126,7 +126,10 @@ class PSDDesktopApp(tk.Tk):
         actions_row = ttk.Frame(bottom_frame)
         actions_row.pack(fill=tk.X)
 
-        self.btn_export_zip = ttk.Button(actions_row, text="📦 Exportar Selecionadas (.ZIP)...", command=self.export_zip)
+        self.btn_export_html_zip = ttk.Button(actions_row, text="🌐 Exportar HTML (.ZIP)...", command=self.export_html_zip)
+        self.btn_export_html_zip.pack(side=tk.RIGHT, padx=4)
+
+        self.btn_export_zip = ttk.Button(actions_row, text="📦 Exportar Imagens (.ZIP)...", command=self.export_zip)
         self.btn_export_zip.pack(side=tk.RIGHT, padx=4)
 
         self.btn_export_folder = ttk.Button(actions_row, text="📁 Salvar em Pasta Local...", command=self.export_folder)
@@ -407,6 +410,49 @@ class PSDDesktopApp(tk.Tk):
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Erro ao exportar pasta", str(e)))
             self.after(0, lambda: self.status_var.set("Falha na exportação."))
+
+    def export_html_zip(self):
+        if not self.extractor:
+            messagebox.showwarning("Aviso", "Abra um arquivo PSD primeiro.")
+            return
+
+        selected = self.get_selected_indices()
+        if not selected:
+            messagebox.showwarning("Aviso", "Selecione ao menos uma camada para gerar o HTML renderizável.")
+            return
+
+        save_path = filedialog.asksaveasfilename(
+            title="Salvar Pacote HTML (.ZIP)",
+            defaultextension=".zip",
+            filetypes=[("Arquivo ZIP", "*.zip")],
+            initialfile=f"{os.path.splitext(self.extractor.filename)[0]}_html_renderizavel.zip"
+        )
+        if not save_path:
+            return
+
+        self.status_var.set("Gerando pacote HTML renderizável...")
+        self.update_idletasks()
+
+        threading.Thread(
+            target=self._export_html_zip_thread,
+            args=(save_path, selected),
+            daemon=True
+        ).start()
+
+    def _export_html_zip_thread(self, save_path, selected):
+        try:
+            zip_buf = self.extractor.export_html_to_zip(selected_indices=selected, responsive=True)
+            with open(save_path, "wb") as f:
+                f.write(zip_buf.getvalue())
+
+            self.after(0, lambda: messagebox.showinfo(
+                "Sucesso",
+                f"Pacote HTML renderizável gerado com sucesso em:\n{save_path}\n\nAbra o 'index.html' no navegador para visualizar a composição montada com as peças recortadas!"
+            ))
+            self.after(0, lambda: self.status_var.set("Exportação HTML concluída."))
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror("Erro ao exportar HTML", str(e)))
+            self.after(0, lambda: self.status_var.set("Falha na exportação HTML."))
 
 
 if __name__ == "__main__":
