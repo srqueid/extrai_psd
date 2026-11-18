@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extrator de Imagens e Camadas PSD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --bg-card: #1e293b;
+      --bg-card-hover: #273549;
+      --bg-surface: #0b1120;
+      --border-color: #334155;
+      --border-accent: #38bdf8;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --primary-light: #38bdf8;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --danger: #ef4444;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 4px rgba(0,0,0,0.25);
+      --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Checkerboard pattern for transparency */
+    .checkerboard {
+      background-color: #1e293b;
+      background-image:
+        linear-gradient(45deg, #2b394e 25%, transparent 25%),
+        linear-gradient(-45deg, #2b394e 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #2b394e 75%),
+        linear-gradient(-45deg, transparent 75%, #2b394e 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+
+    header {
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: #fff;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+    }
+
+    .brand h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0.55rem 1.1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      user-select: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #0284c7);
+      box-shadow: 0 4px 18px rgba(2, 132, 199, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--text-muted);
+    }
+
+    .btn-outline-primary {
+      background: transparent;
+      border: 1px solid var(--border-accent);
+      color: var(--primary-light);
+    }
+
+    .btn-outline-primary:hover {
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    .btn-sm {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.775rem;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Upload Area */
+    .dropzone-container {
+      margin-bottom: 2rem;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border-color);
+      background: rgba(30, 41, 59, 0.5);
+      border-radius: var(--radius-lg);
+      padding: 3.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--border-accent);
+      background: rgba(30, 41, 59, 0.9);
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.15);
+    }
+
+    .dropzone-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1.25rem;
+      background: rgba(56, 189, 248, 0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary-light);
+    }
+
+    .dropzone-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .dropzone-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    /* Metadata Bar */
+    .psd-meta-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .meta-file-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .meta-file-name {
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: #fff;
+    }
+
+    .meta-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .badge-blue { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-purple { background: rgba(139, 92, 246, 0.15); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-gray { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
+
+    /* Control Panel & Filters */
+    .controls-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      position: relative;
+      min-width: 240px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.5rem 0.75rem 0.5rem 2rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary-light);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.65rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    select, input[type="text"], input[type="number"] {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    select:focus {
+      border-color: var(--primary-light);
+    }
+
+    .export-options-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .option-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .option-item label {
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    /* Tabs */
+    .tabs-nav {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: var(--primary-light);
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    /* Layers Grid */
+    .layers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .layer-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+
+    .layer-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .layer-card.selected {
+      border-color: var(--border-accent);
+      background: rgba(30, 41, 59, 0.95);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    }
+
+    .layer-card-header {
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .layer-checkbox {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .layer-thumb-container {
+      height: 170px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .layer-thumb-img {
+      max-height: 100%;
+      max-width: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,0.4));
+      transition: transform 0.2s;
+    }
+
+    .layer-thumb-container:hover .layer-thumb-img {
+      transform: scale(1.05);
+    }
+
+    .layer-card-body {
+      padding: 0.9rem 1rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .layer-title-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .layer-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #fff;
+    }
+
+    .layer-meta-info {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .layer-card-footer {
+      padding: 0.75rem 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Composite View */
+    .composite-view {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .composite-display {
+      max-width: 100%;
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .composite-img {
+      max-width: 100%;
+      max-height: 75vh;
+      object-fit: contain;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* Modal / Alert Toasts */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 0.9rem 1.25rem;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-lg);
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.3s ease;
+      max-width: 400px;
+    }
+
+    .toast-success { border-left: 4px solid var(--accent-green); }
+    .toast-error { border-left: 4px solid var(--danger); }
+    .toast-info { border-left: 4px solid var(--border-accent); }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top: 3px solid var(--primary-light);
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Modal Dialog */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      width: 90%;
+      max-width: 520px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .modal-body {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">PSD</div>
+      <div>
+        <h1>Extrator de Imagens PSD</h1>
+        <p>Photoshop Layer & Asset Extractor Pro</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="btnNewFile" class="btn btn-secondary btn-sm" style="display:none;" onclick="resetWorkspace()">
+        📂 Abrir Outro PSD
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Dropzone Area -->
+    <section id="uploadSection" class="dropzone-container">
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" class="file-input" accept=".psd,.psb" onchange="handleFileSelected(event)">
+        <div class="dropzone-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <h2 class="dropzone-title">Arraste seu arquivo PSD ou clique para selecionar</h2>
+        <p class="dropzone-subtitle">Suporta arquivos .PSD e .PSB com múltiplas camadas, máscaras e transparências.</p>
+        <button type="button" class="btn btn-primary" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">
+          Selecionar Arquivo PSD
+        </button>
+      </div>
+    </section>
+
+    <!-- Workspace (Inicialmente oculto) -->
+    <div id="workspaceSection" style="display: none;">
+      
+      <!-- Metadata Card -->
+      <section class="psd-meta-card">
+        <div class="meta-file-info">
+          <div>
+            <div class="meta-file-name" id="metaFileName">arquivo.psd</div>
+            <div class="meta-tags">
+              <span class="badge badge-blue" id="metaDimensions">0 × 0 px</span>
+              <span class="badge badge-green" id="metaColorMode">RGB 8-bit</span>
+              <span class="badge badge-purple" id="metaLayerCount">0 camadas</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+          <button class="btn btn-outline-primary btn-sm" onclick="downloadCompositeImage()">
+            🖼️ Baixar Composto
+          </button>
+        </div>
+      </section>
+
+      <!-- Navigation Tabs -->
+      <nav class="tabs-nav">
+        <button class="tab-btn active" id="tabLayersBtn" onclick="switchTab('layers')">
+          📑 Camadas (<span id="visibleLayerCount">0</span>)
+        </button>
+        <button class="tab-btn" id="tabCompositeBtn" onclick="switchTab('composite')">
+          👁️ Imagem Completa (Renderizada)
+        </button>
+      </nav>
+
+      <!-- Panel: Camadas -->
+      <div id="tabLayersContent">
+        <!-- Controls & Filter Toolbar -->
+        <section class="controls-panel">
+          <div class="controls-row">
+            <div class="filter-group">
+              <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" class="search-input" placeholder="Filtrar por nome de camada..." oninput="applyFilters()">
+              </div>
+
+              <select id="typeFilter" onchange="applyFilters()">
+                <option value="all">Todos os tipos</option>
+                <option value="pixel">Apenas Imagens / Pixels</option>
+                <option value="type">Apenas Texto</option>
+                <option value="smartobject">Smart Objects</option>
+                <option value="group">Grupos / Pastas</option>
+                <option value="shape">Formas / Vetores</option>
+              </select>
+
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="onlyVisibleCheckbox" onchange="applyFilters()"> Apenas Visíveis
+              </label>
+            </div>
+
+            <div class="filter-group">
+              <button class="btn btn-secondary btn-sm" onclick="selectAllLayers(true)">Marcar Todas</button>
+              <button class="btn btn-secondary btn-sm" onclick="selectAllLayers(false)">Desmarcar</button>
+              <button class="btn btn-secondary btn-sm" onclick="invertSelection()">Inverter</button>
+            </div>
+          </div>
+
+          <!-- Export Settings Bar -->
+          <div class="export-options-bar">
+            <div class="option-item">
+              <label for="exportFormat">Formato:</label>
+              <select id="exportFormat">
+                <option value="PNG">PNG (Transparência)</option>
+                <option value="WEBP">WEBP (Compacto)</option>
+                <option value="JPG">JPEG (Fundo Branco)</option>
+              </select>
+            </div>
+
+            <div class="option-item">
+              <label for="exportMode">Modo:</label>
+              <select id="exportMode">
+                <option value="cropped">Camada Recortada (Trim Bounding Box)</option>
+                <option value="canvas">Canvas Completo (Posição Original)</option>
+              </select>
+            </div>
+
+            <div class="option-item" id="qualityWrapper" style="display: none;">
+              <label for="exportQuality">Qualidade:</label>
+              <input type="number" id="exportQuality" min="10" max="100" value="90" style="width: 70px;">
+            </div>
+
+            <div class="option-item">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="includeCompositeCheck"> Incluir Imagem Composta
+              </label>
+            </div>
+
+            <div style="margin-left: auto; display: flex; gap: 0.75rem;">
+              <button class="btn btn-secondary" onclick="openFolderExportModal()">
+                📁 Salvar em Pasta Local
+              </button>
+              <button class="btn btn-primary" id="btnExportZip" onclick="exportZipSelected()">
+                📦 Baixar Selecionadas (.ZIP) [<span id="selectedCountBadge">0</span>]
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Layers Grid -->
+        <section class="layers-grid" id="layersGrid">
+          <!-- Cards injetados via JavaScript -->
+        </section>
+      </div>
+
+      <!-- Panel: Imagem Completa (Composite) -->
+      <div id="tabCompositeContent" style="display: none;">
+        <div class="composite-view">
+          <div class="composite-display checkerboard">
+            <img id="compositeFullImage" class="composite-img" alt="Imagem Composta do PSD" src="">
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="downloadCompositeImage()">
+              ⬇️ Baixar Imagem Composta em Alta Resolução
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal para Salvar em Pasta Local -->
+  <div class="modal-overlay" id="folderModal">
+    <div class="modal">
+      <h3 class="modal-title">Salvar Imagens em Pasta Local</h3>
+      <div class="modal-body">
+        <p>Informe o caminho da pasta no seu computador onde deseja salvar as imagens extraídas:</p>
+        <input type="text" id="localFolderPath" placeholder="Ex: C:\Imagens\Exportadas" style="width: 100%;">
+        <small style="color: var(--text-muted);">A pasta será criada automaticamente caso ainda não exista.</small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeFolderExportModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btnConfirmFolderExport" onclick="confirmFolderExport()">Salvar Imagens</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container de Toasts -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // Estado da Aplicação
+    let currentSessionId = null;
+    let psdData = null;
+    let layers = [];
+    let selectedIndices = new Set();
+    let currentTab = 'layers';
+
+    // Drag and Drop
+    const dropzone = document.getElementById('dropzone');
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        uploadFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    function handleFileSelected(event) {
+      if (event.target.files && event.target.files.length > 0) {
+        uploadFile(event.target.files[0]);
+      }
+    }
+
+    // Gerenciador de formato (mostra slider de qualidade se JPG/WEBP)
+    document.getElementById('exportFormat').addEventListener('change', (e) => {
+      const val = e.target.value;
+      const qw = document.getElementById('qualityWrapper');
+      qw.style.display = (val === 'JPG' || val === 'WEBP') ? 'flex' : 'none';
+    });
+
+    // Upload & Parsing
+    async function uploadFile(file) {
+      if (!file.name.toLowerCase().endsWith('.psd') && !file.name.toLowerCase().endsWith('.psb')) {
+        showToast('Por favor, selecione um arquivo válido .PSD ou .PSB', 'error');
+        return;
+      }
+
+      showToast(`Carregando e processando "${file.name}"...`, 'info');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const resp = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.error || 'Erro ao processar PSD');
+        }
+
+        currentSessionId = data.session_id;
+        psdData = data.info;
+        layers = data.layers;
+
+        // Seleciona todas as camadas que tenham pixels por padrão
+        selectedIndices.clear();
+        layers.forEach(l => {
+          if (l.has_pixels && !l.is_group) {
+            selectedIndices.add(l.index);
+          }
+        });
+
+        renderWorkspace();
+        showToast(`PSD "${file.name}" carregado com sucesso!`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      }
+    }
+
+    function renderWorkspace() {
+      document.getElementById('uploadSection').style.display = 'none';
+      document.getElementById('workspaceSection').style.display = 'block';
+      document.getElementById('btnNewFile').style.display = 'inline-flex';
+
+      // Metadados
+      document.getElementById('metaFileName').textContent = psdData.filename;
+      document.getElementById('metaDimensions').textContent = `${psdData.width} × ${psdData.height} px`;
+      document.getElementById('metaColorMode').textContent = `${psdData.color_mode} (${psdData.depth}-bit)`;
+      document.getElementById('metaLayerCount').textContent = `${psdData.total_layers} camadas`;
+
+      // Atualiza imagem de composite
+      document.getElementById('compositeFullImage').src = `/api/preview/${currentSessionId}?t=${Date.now()}`;
+
+      applyFilters();
+      updateSelectedCount();
+    }
+
+    function resetWorkspace() {
+      currentSessionId = null;
+      psdData = null;
+      layers = [];
+      selectedIndices.clear();
+
+      document.getElementById('uploadSection').style.display = 'block';
+      document.getElementById('workspaceSection').style.display = 'none';
+      document.getElementById('btnNewFile').style.display = 'none';
+      document.getElementById('fileInput').value = '';
+    }
+
+    // Alternância de Abas
+    function switchTab(tab) {
+      currentTab = tab;
+      const tabLayersBtn = document.getElementById('tabLayersBtn');
+      const tabCompositeBtn = document.getElementById('tabCompositeBtn');
+      const tabLayersContent = document.getElementById('tabLayersContent');
+      const tabCompositeContent = document.getElementById('tabCompositeContent');
+
+      if (tab === 'layers') {
+        tabLayersBtn.classList.add('active');
+        tabCompositeBtn.classList.remove('active');
+        tabLayersContent.style.display = 'block';
+        tabCompositeContent.style.display = 'none';
+      } else {
+        tabCompositeBtn.classList.add('active');
+        tabLayersBtn.classList.remove('active');
+        tabCompositeContent.style.display = 'block';
+        tabLayersContent.style.display = 'none';
+      }
+    }
+
+    // Filtros e Renderização da Grade de Camadas
+    function applyFilters() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+      const typeFilter = document.getElementById('typeFilter').value;
+      const onlyVisible = document.getElementById('onlyVisibleCheckbox').checked;
+
+      const filtered = layers.filter(layer => {
+        if (searchTerm && !layer.name.toLowerCase().includes(searchTerm)) {
+          return false;
+        }
+        if (typeFilter !== 'all') {
+          if (typeFilter === 'pixel' && layer.kind !== 'pixel') return false;
+          if (typeFilter === 'type' && layer.kind !== 'type') return false;
+          if (typeFilter === 'smartobject' && layer.kind !== 'smartobject') return false;
+          if (typeFilter === 'group' && !layer.is_group) return false;
+          if (typeFilter === 'shape' && layer.kind !== 'shape') return false;
+        }
+        if (onlyVisible && !layer.visible) {
+          return false;
+        }
+        return true;
+      });
+
+      document.getElementById('visibleLayerCount').textContent = filtered.length;
+      renderLayersGrid(filtered);
+    }
+
+    function renderLayersGrid(layersToRender) {
+      const container = document.getElementById('layersGrid');
+      container.innerHTML = '';
+
+      if (layersToRender.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <p>Nenhuma camada corresponde aos filtros aplicados.</p>
+          </div>
+        `;
+        return;
+      }
+
+      layersToRender.forEach(layer => {
+        const isSelected = selectedIndices.has(layer.index);
+        const card = document.createElement('div');
+        card.className = `layer-card ${isSelected ? 'selected' : ''}`;
+        card.id = `layer-card-${layer.index}`;
+
+        const kindBadgeClass = {
+          'pixel': 'badge-blue',
+          'type': 'badge-green',
+          'smartobject': 'badge-purple',
+          'group': 'badge-amber',
+          'shape': 'badge-blue'
+        }[layer.kind] || 'badge-gray';
+
+        const kindLabel = {
+          'pixel': 'Pixel',
+          'type': 'Texto',
+          'smartobject': 'Smart Obj',
+          'group': 'Grupo',
+          'shape': 'Forma'
+        }[layer.kind] || layer.kind;
+
+        card.innerHTML = `
+          <div class="layer-card-header">
+            <input type="checkbox" class="layer-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectLayer(${layer.index}, event)">
+            <div style="display:flex; align-items:center; gap: 6px;">
+              <span class="badge ${kindBadgeClass}">${kindLabel}</span>
+              ${layer.visible ? '<span title="Visível">👁️</span>' : '<span title="Oculto" style="opacity:0.4;">🚫</span>'}
+            </div>
+          </div>
+
+          <div class="layer-thumb-container checkerboard" onclick="toggleSelectLayer(${layer.index})">
+            <img class="layer-thumb-img" src="/api/thumbnail/${currentSessionId}/${layer.index}" alt="${escapeHtml(layer.name)}" loading="lazy">
+          </div>
+
+          <div class="layer-card-body">
+            <div class="layer-title-row">
+              <span class="layer-title" title="${escapeHtml(layer.name)}">${escapeHtml(layer.name)}</span>
+              <span style="font-size:0.75rem; color:var(--text-muted); font-family:monospace;">#${layer.index + 1}</span>
+            </div>
+            <div class="layer-meta-info">
+              <span>${layer.width} × ${layer.height} px</span>
+              <span>X:${layer.left} Y:${layer.top}</span>
+            </div>
+          </div>
+
+          <div class="layer-card-footer">
+            <span style="font-size:0.75rem; color:var(--text-muted);">${layer.opacity}% Opacidade</span>
+            <button class="btn btn-secondary btn-sm" onclick="downloadSingleLayer(${layer.index})" title="Baixar esta camada avulsa">
+              ⬇️ Baixar
+            </button>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function toggleSelectLayer(index, event) {
+      if (event) event.stopPropagation();
+
+      if (selectedIndices.has(index)) {
+        selectedIndices.delete(index);
+      } else {
+        selectedIndices.add(index);
+      }
+
+      const card = document.getElementById(`layer-card-${index}`);
+      if (card) {
+        const checkbox = card.querySelector('.layer-checkbox');
+        if (checkbox) checkbox.checked = selectedIndices.has(index);
+        if (selectedIndices.has(index)) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      }
+
+      updateSelectedCount();
+    }
+
+    function selectAllLayers(selectAll) {
+      if (selectAll) {
+        layers.forEach(l => selectedIndices.add(l.index));
+      } else {
+        selectedIndices.clear();
+      }
+      applyFilters();
+      updateSelectedCount();
+    }
+
+    function invertSelection() {
+      layers.forEach(l => {
+        if (selectedIndices.has(l.index)) {
+          selectedIndices.delete(l.index);
+        } else {
+          selectedIndices.add(l.index);
+        }
+      });
+      applyFilters();
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      document.getElementById('selectedCountBadge').textContent = selectedIndices.size;
+    }
+
+    // Exportações
+    function downloadSingleLayer(index) {
+      const mode = document.getElementById('exportMode').value;
+      const format = document.getElementById('exportFormat').value;
+      const quality = document.getElementById('exportQuality').value;
+
+      const url = `/api/export/single/${currentSessionId}/${index}?mode=${mode}&format=${format}&quality=${quality}`;
+      window.open(url, '_blank');
+    }
+
+    function downloadCompositeImage() {
+      if (!currentSessionId) return;
+      const format = document.getElementById('exportFormat').value;
+      const mode = 'canvas';
+      // Download da imagem completa
+      const url = `/api/preview/${currentSessionId}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${psdData.filename.replace(/\.[^/.]+$/, "")}_completo.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    async function exportZipSelected() {
+      if (!currentSessionId) return;
+      const includeComposite = document.getElementById('includeCompositeCheck').checked;
+
+      if (selectedIndices.size === 0 && !includeComposite) {
+        showToast('Selecione pelo menos uma camada ou marque a opção de incluir o composto!', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btnExportZip');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> Gerando ZIP...`;
+
+      showToast('Compactando camadas selecionadas em alta resolução...', 'info');
+
+      try {
+        const payload = {
+          session_id: currentSessionId,
+          selected_indices: Array.from(selectedIndices),
+          include_composite: includeComposite,
+          mode: document.getElementById('exportMode').value,
+          format: document.getElementById('exportFormat').value,
+          quality: parseInt(document.getElementById('exportQuality').value) || 90
+        };
+
+        const resp = await fetch('/api/export/zip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json();
+          throw new Error(errData.error || 'Erro ao gerar ZIP');
+        }
+
+        const blob = await resp.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${psdData.filename.replace(/\.[^/.]+$/, "")}_camadas.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        showToast('Download do ZIP concluído!', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    // Modal para salvar em pasta local
+    function openFolderExportModal() {
+      if (selectedIndices.size === 0 && !document.getElementById('includeCompositeCheck').checked) {
+        showToast('Selecione pelo menos uma camada para salvar!', 'error');
+        return;
+      }
+      document.getElementById('folderModal').classList.add('open');
+    }
+
+    function closeFolderExportModal() {
+      document.getElementById('folderModal').classList.remove('open');
+    }
+
+    async function confirmFolderExport() {
+      const folderPath = document.getElementById('localFolderPath').value.trim();
+      if (!folderPath) {
+        showToast('Por favor, digite o caminho da pasta!', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btnConfirmFolderExport');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> Salvando...`;
+
+      try {
+        const payload = {
+          session_id: currentSessionId,
+          output_dir: folderPath,
+          selected_indices: Array.from(selectedIndices),
+          include_composite: document.getElementById('includeCompositeCheck').checked,
+          mode: document.getElementById('exportMode').value,
+          format: document.getElementById('exportFormat').value,
+          quality: parseInt(document.getElementById('exportQuality').value) || 90
+        };
+
+        const resp = await fetch('/api/export/folder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.error || 'Erro ao salvar na pasta');
+        }
+
+        closeFolderExportModal();
+        showToast(`Sucesso! ${data.saved_count} arquivos salvos em: ${data.output_dir}`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    // Toast Utility
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+
+      const icon = {
+        'success': '✅',
+        'error': '❌',
+        'info': 'ℹ️'
+      }[type] || 'ℹ️';
+
+      toast.innerHTML = `<span>${icon}</span> <span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
