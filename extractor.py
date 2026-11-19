@@ -25,6 +25,38 @@ def sanitize_filename(name: str, fallback: str = "camada") -> str:
     cleaned = cleaned[:100]
     return cleaned if cleaned else fallback
 
+
+def scope_css(css_text: str, prefix: str) -> str:
+    """
+    Prefixa todos os seletores CSS com um seletor pai (ex: 'body:not(.view-mobile)').
+    Mantém intactas e válidas as declarações de propriedades dentro dos blocos { ... }.
+    """
+    lines = []
+    in_block = False
+    for line in css_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            lines.append("")
+            continue
+        if not in_block:
+            if "{" in stripped:
+                idx = line.find("{")
+                selector_part = line[:idx].strip()
+                rest = line[idx:]
+                selectors = [s.strip() for s in selector_part.split(",") if s.strip()]
+                scoped = ", ".join(f"{prefix} {s}" for s in selectors)
+                lines.append(f"  {scoped} {rest}")
+                if "}" not in rest:
+                    in_block = True
+            else:
+                lines.append("  " + line)
+        else:
+            lines.append("  " + line)
+            if "}" in stripped:
+                in_block = False
+    return "\n".join(lines)
+
+
 class PSDExtractor:
     def __init__(self, filepath_or_bytes, filename: Optional[str] = None):
         """Carrega o arquivo PSD a partir de um caminho de arquivo ou objeto bytes/io."""
@@ -486,6 +518,8 @@ class PSDExtractor:
             h_pct = (h / artboard_h) * 100.0
 
             layer_class = f"psd-layer-{idx}"
+            is_full_bg = (w >= artboard_w * 0.98 and h >= artboard_h * 0.98) or (rel_left <= 0 and rel_top <= 0 and w >= artboard_w and h >= artboard_h)
+            img_fit = "cover" if is_full_bg else "contain"
 
             # === 1. Regra para DESKTOP / WEB ===
             if target == "mobile":
@@ -506,7 +540,7 @@ class PSDExtractor:
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: {img_fit};
   pointer-events: none;
 }}
 """
@@ -526,6 +560,13 @@ class PSDExtractor:
   z-index: {z_idx} !important;{css_opacity_m_line}
   mix-blend-mode: {blend} !important;
   display: block !important;
+}}
+.{layer_class} img {{
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: {img_fit} !important;
+  pointer-events: none !important;
 }}
 """
             elif mobile_behavior == "bg":
@@ -601,6 +642,11 @@ class PSDExtractor:
         layers_html = "\n".join(layer_elements)
         desktop_css_content = "\n\n".join(desktop_rules)
         mobile_css_content = "\n\n".join(mobile_rules)
+
+        scoped_desktop_not_mobile = scope_css(desktop_css_content, "body:not(.view-mobile)")
+        scoped_desktop_view_desktop = scope_css(desktop_css_content, "body.view-desktop")
+        scoped_mobile_not_desktop = scope_css(mobile_css_content, "body:not(.view-desktop)")
+        scoped_mobile_view_mobile = scope_css(mobile_css_content, "body.view-mobile")
 
         full_css = f"""/* CSS da Composição PSD - Otimizada para Web & Mobile */
 * {{
@@ -735,7 +781,7 @@ body {{
     border: 1px solid rgba(255, 255, 255, 0.08);
   }}
 
-  body:not(.view-mobile) {desktop_css_content.replace(chr(10), chr(10) + '  body:not(.view-mobile) ')}
+{scoped_desktop_not_mobile}
 }}
 
 /* Forçar visualização Desktop mesmo em telas menores */
@@ -753,7 +799,7 @@ body.view-desktop .psd-artboard {{
   border-radius: 12px !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }}
-body.view-desktop {desktop_css_content.replace(chr(10), chr(10) + 'body.view-desktop ')}
+{scoped_desktop_view_desktop}
 
 /* ======================================================== */
 /* 📱 REGRAS MOBILE (Telas <= 768px ou Modo Mobile Forçado) */
@@ -776,7 +822,7 @@ body.view-desktop {desktop_css_content.replace(chr(10), chr(10) + 'body.view-des
     {"aspect-ratio: auto !important; height: auto !important; min-height: 240px !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 16px !important; padding: 24px 16px !important; overflow: visible !important;" if mobile_mode == "stack" else f"aspect-ratio: {artboard_w} / {artboard_h} !important; overflow: hidden !important;"}
   }}
 
-  body:not(.view-desktop) {mobile_css_content.replace(chr(10), chr(10) + '  body:not(.view-desktop) ')}
+{scoped_mobile_not_desktop}
 }}
 
 /* Forçar visualização Mobile no computador */
@@ -795,7 +841,7 @@ body.view-mobile .psd-artboard {{
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5) !important;
   {"aspect-ratio: auto !important; height: auto !important; min-height: 240px !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 16px !important; padding: 24px 16px !important; overflow: visible !important;" if mobile_mode == "stack" else f"aspect-ratio: {artboard_w} / {artboard_h} !important; overflow: hidden !important;"}
 }}
-body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobile ')}
+{scoped_mobile_view_mobile}
 """
 
         doc_title = os.path.splitext(self.filename)[0]
