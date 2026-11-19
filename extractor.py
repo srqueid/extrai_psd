@@ -331,10 +331,11 @@ class PSDExtractor:
         fit_to_selection: bool = True,
         responsive: bool = True,
         mobile_mode: str = "stack",
-        layer_configs: Optional[Dict[str, Any]] = None
+        layer_configs: Optional[Dict[str, Any]] = None,
+        view_mode: str = "responsive"
     ) -> Tuple[str, str, Dict[str, bytes]]:
         """
-        Gera HTML e CSS renderizáveis reconstruindo a composição do PSD com suas peças,
+        Gera HTML e CSS renderizáveis reconstruindo a composição do PSD com suas peças separadas,
         permitindo que cada peça seja renderizada de forma diferente na Web (Desktop) e no Mobile.
         - fit_to_selection=True: ajusta o tamanho do artboard ao retângulo delimitador exato das
           camadas selecionadas (sem espaços vazios gigantes).
@@ -348,6 +349,7 @@ class PSDExtractor:
                "mobile_order": int
              }
           }
+        - view_mode: 'responsive' (padrão adaptativo com switcher), 'desktop' (foco Web) ou 'mobile' (foco Mobile).
         Retorna (html_completo, css_completo, dict_imagens_bytes).
         """
         layers_info = {info["index"]: info for info in self.get_layers_info()}
@@ -795,16 +797,38 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
 """
 
         doc_title = os.path.splitext(self.filename)[0]
+
+        if view_mode == "desktop":
+            body_class = "view-desktop"
+            title_text = f"{doc_title} - Banner Web"
+            active_auto = ""
+            active_desktop = "active"
+            active_mobile = ""
+        elif view_mode == "mobile":
+            body_class = "view-mobile"
+            title_text = f"{doc_title} - Banner Mobile"
+            active_auto = ""
+            active_desktop = ""
+            active_mobile = "active"
+        else:
+            body_class = ""
+            title_text = f"{doc_title} - Banner Web & Mobile"
+            active_auto = "active"
+            active_desktop = ""
+            active_mobile = ""
+
+        body_attr = f' class="{body_class}"' if body_class else ""
+
         html_content = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{doc_title} - Reconstrução Web & Mobile</title>
+  <title>{title_text}</title>
   {"" if embed_base64 else '<link rel="stylesheet" href="style.css">'}
   {f"<style>{full_css}</style>" if embed_base64 else ""}
 </head>
-<body>
+<body{body_attr}>
 
   <div class="psd-stage-container">
     <div class="psd-toolbar">
@@ -815,9 +839,9 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
         {'<span class="badge" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);">Tamanho Ajustado</span>' if is_cropped else '<span class="badge">Canvas Completo</span>'}
       </div>
       <div class="device-switcher">
-        <button class="device-btn active" id="btnViewAuto" onclick="setDeviceView('auto')" title="Adapta automaticamente conforme o tamanho da tela">⚡ Auto</button>
-        <button class="device-btn" id="btnViewDesktop" onclick="setDeviceView('desktop')" title="Força visualização Web / Desktop">🖥️ Web</button>
-        <button class="device-btn" id="btnViewMobile" onclick="setDeviceView('mobile')" title="Força visualização Mobile">📱 Mobile</button>
+        <button class="device-btn {active_auto}" id="btnViewAuto" onclick="setDeviceView('auto')" title="Adapta automaticamente conforme o tamanho da tela">⚡ Auto</button>
+        <button class="device-btn {active_desktop}" id="btnViewDesktop" onclick="setDeviceView('desktop')" title="Força visualização Web / Desktop">🖥️ Web</button>
+        <button class="device-btn {active_mobile}" id="btnViewMobile" onclick="setDeviceView('mobile')" title="Força visualização Mobile">📱 Mobile</button>
       </div>
     </div>
 
@@ -879,10 +903,13 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
     ) -> io.BytesIO:
         """
         Gera um arquivo ZIP completo contendo:
-        - index.html (otimizado para Web & Mobile)
+        - index.html (banner responsivo auto-adaptativo para Web & Mobile)
+        - banner_web.html (versão dedicada para páginas Web/Desktop)
+        - banner_mobile.html (versão dedicada para páginas Mobile)
         - style.css
-        - images/... (peças da composição)
+        - images/... (todas as peças recortadas da composição)
         """
+        # 1. Página principal auto-responsiva
         html_code, css_code, images_bytes = self.generate_renderable_html(
             selected_indices=selected_indices,
             embed_base64=False,
@@ -890,12 +917,39 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
             fit_to_selection=fit_to_selection,
             responsive=responsive,
             mobile_mode=mobile_mode,
-            layer_configs=layer_configs
+            layer_configs=layer_configs,
+            view_mode="responsive"
+        )
+
+        # 2. Versão dedicada Web
+        web_code, _, _ = self.generate_renderable_html(
+            selected_indices=selected_indices,
+            embed_base64=False,
+            images_dir_rel="images",
+            fit_to_selection=fit_to_selection,
+            responsive=responsive,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs,
+            view_mode="desktop"
+        )
+
+        # 3. Versão dedicada Mobile
+        mobile_code, _, _ = self.generate_renderable_html(
+            selected_indices=selected_indices,
+            embed_base64=False,
+            images_dir_rel="images",
+            fit_to_selection=fit_to_selection,
+            responsive=responsive,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs,
+            view_mode="mobile"
         )
 
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("index.html", html_code)
+            zf.writestr("banner_web.html", web_code)
+            zf.writestr("banner_mobile.html", mobile_code)
             zf.writestr("style.css", css_code)
             for img_name, img_data in images_bytes.items():
                 zf.writestr(f"images/{img_name}", img_data)
@@ -909,11 +963,12 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
         fit_to_selection: bool = True,
         responsive: bool = True,
         mobile_mode: str = "stack",
-        layer_configs: Optional[Dict[str, Any]] = None
+        layer_configs: Optional[Dict[str, Any]] = None,
+        view_mode: str = "responsive"
     ) -> str:
         """
         Gera um arquivo HTML autônomo (single-file) com todas as peças incorporadas em Base64.
-        Renderiza com suporte completo a Web e Mobile.
+        Renderiza com suporte completo a Web e Mobile sem requisições externas.
         """
         html_code, _, _ = self.generate_renderable_html(
             selected_indices=selected_indices,
@@ -921,7 +976,8 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
             fit_to_selection=fit_to_selection,
             responsive=responsive,
             mobile_mode=mobile_mode,
-            layer_configs=layer_configs
+            layer_configs=layer_configs,
+            view_mode=view_mode
         )
         return html_code
 
@@ -936,11 +992,13 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
         layer_configs: Optional[Dict[str, Any]] = None
     ) -> List[str]:
         """
-        Salva o pacote HTML renderizável em uma pasta local do computador.
+        Salva o pacote HTML do banner em uma pasta local do computador,
+        com as peças separadas e renderização para Web e Mobile.
         """
         os.makedirs(output_dir, exist_ok=True)
         saved_paths = []
 
+        # 1. Página principal responsiva
         html_code, css_code, images_bytes = self.generate_renderable_html(
             selected_indices=selected_indices,
             embed_base64=embed_base64,
@@ -948,7 +1006,8 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
             fit_to_selection=fit_to_selection,
             responsive=responsive,
             mobile_mode=mobile_mode,
-            layer_configs=layer_configs
+            layer_configs=layer_configs,
+            view_mode="responsive"
         )
 
         html_path = os.path.join(output_dir, "index.html")
@@ -956,6 +1015,38 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
             f.write(html_code)
         saved_paths.append(html_path)
 
+        # 2. Versões específicas Web e Mobile
+        web_code, _, _ = self.generate_renderable_html(
+            selected_indices=selected_indices,
+            embed_base64=embed_base64,
+            images_dir_rel="images",
+            fit_to_selection=fit_to_selection,
+            responsive=responsive,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs,
+            view_mode="desktop"
+        )
+        web_path = os.path.join(output_dir, "banner_web.html")
+        with open(web_path, "w", encoding="utf-8") as f:
+            f.write(web_code)
+        saved_paths.append(web_path)
+
+        mobile_code, _, _ = self.generate_renderable_html(
+            selected_indices=selected_indices,
+            embed_base64=embed_base64,
+            images_dir_rel="images",
+            fit_to_selection=fit_to_selection,
+            responsive=responsive,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs,
+            view_mode="mobile"
+        )
+        mobile_path = os.path.join(output_dir, "banner_mobile.html")
+        with open(mobile_path, "w", encoding="utf-8") as f:
+            f.write(mobile_code)
+        saved_paths.append(mobile_path)
+
+        # 3. CSS e Imagens (se não estiver embutido em Base64)
         if not embed_base64:
             css_path = os.path.join(output_dir, "style.css")
             with open(css_path, "w", encoding="utf-8") as f:

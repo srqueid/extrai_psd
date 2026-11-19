@@ -282,6 +282,222 @@ def export_folder():
         return jsonify({"error": f"Erro ao salvar na pasta: {str(e)}"}), 500
 
 
+# ========================================================
+# ROTAS PARA GERAÇÃO E EXPORTAÇÃO HTML (WEB & MOBILE)
+# ========================================================
+
+@app.route('/api/html/preview/<session_id>', methods=['GET', 'POST'])
+def get_html_preview(session_id):
+    """
+    Retorna o HTML renderizável do banner montado com as peças separadas,
+    com suporte a Web e Mobile em tempo real.
+    """
+    session = SESSIONS.get(session_id)
+    if not session:
+        return "Sessão não encontrada", 404
+
+    extractor: PSDExtractor = session["extractor"]
+
+    if request.method == 'POST':
+        data = request.json or {}
+        selected_indices = data.get("selected_indices")
+        fit_to_selection = bool(data.get("fit_to_selection", True))
+        mobile_mode = data.get("mobile_mode", "stack")
+        layer_configs = data.get("layer_configs", {})
+    else:
+        # GET via query parameters
+        selected_str = request.args.get("selected", "")
+        if selected_str:
+            try:
+                selected_indices = [int(x) for x in selected_str.split(",") if x.strip().isdigit()]
+            except ValueError:
+                selected_indices = None
+        else:
+            selected_indices = None
+        fit_to_selection = request.args.get("fit", "true").lower() != "false"
+        mobile_mode = request.args.get("mobile_mode", "stack")
+        layer_configs = {}
+
+    # Se nenhum índice foi informado, usa todas as camadas válidas com pixels
+    if selected_indices is None:
+        layers = extractor.get_layers_info()
+        selected_indices = [l["index"] for l in layers if l["has_pixels"] and not l["is_group"]]
+
+    try:
+        html_code, _, _ = extractor.generate_renderable_html(
+            selected_indices=selected_indices,
+            embed_base64=True,
+            fit_to_selection=fit_to_selection,
+            responsive=True,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs
+        )
+        return Response(html_code, mimetype="text/html")
+    except Exception as e:
+        logger.error(f"Erro ao gerar preview HTML: {e}", exc_info=True)
+        return str(e), 500
+
+
+@app.route('/api/html/code/<session_id>', methods=['POST'])
+def get_html_code(session_id):
+    """Retorna o código HTML e CSS da composição para cópia e integração."""
+    session = SESSIONS.get(session_id)
+    if not session:
+        return jsonify({"error": "Sessão não encontrada"}), 404
+
+    data = request.json or {}
+    selected_indices = data.get("selected_indices", [])
+    fit_to_selection = bool(data.get("fit_to_selection", True))
+    mobile_mode = data.get("mobile_mode", "stack")
+    layer_configs = data.get("layer_configs", {})
+
+    try:
+        extractor: PSDExtractor = session["extractor"]
+        html_code, css_code, _ = extractor.generate_renderable_html(
+            selected_indices=selected_indices,
+            embed_base64=False,
+            images_dir_rel="images",
+            fit_to_selection=fit_to_selection,
+            responsive=True,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs
+        )
+        return jsonify({
+            "html": html_code,
+            "css": css_code
+        })
+    except Exception as e:
+        logger.error(f"Erro ao extrair código HTML/CSS: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/html/export/zip', methods=['POST'])
+def export_html_zip():
+    """Gera um pacote .ZIP contendo index.html, banner_web.html, banner_mobile.html, style.css e pasta images/."""
+    data = request.json or {}
+    session_id = data.get("session_id")
+    session = SESSIONS.get(session_id)
+    if not session:
+        return jsonify({"error": "Sessão não encontrada"}), 404
+
+    selected_indices = data.get("selected_indices", [])
+    if not selected_indices:
+        return jsonify({"error": "Selecione ao menos uma camada para gerar o HTML"}), 400
+
+    fit_to_selection = bool(data.get("fit_to_selection", True))
+    mobile_mode = data.get("mobile_mode", "stack")
+    layer_configs = data.get("layer_configs", {})
+
+    try:
+        extractor: PSDExtractor = session["extractor"]
+        zip_buffer = extractor.export_html_to_zip(
+            selected_indices=selected_indices,
+            fit_to_selection=fit_to_selection,
+            responsive=True,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs
+        )
+
+        base_name = os.path.splitext(session["filename"])[0]
+        zip_filename = f"{base_name}_html_banner.zip"
+
+        return send_file(
+            zip_buffer,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=zip_filename
+        )
+    except Exception as e:
+        logger.error(f"Erro ao exportar ZIP de HTML: {e}", exc_info=True)
+        return jsonify({"error": f"Erro ao exportar ZIP: {str(e)}"}), 500
+
+
+@app.route('/api/html/export/single', methods=['POST'])
+def export_html_single():
+    """Exporta um arquivo HTML único e autônomo com as imagens embutidas em Base64."""
+    data = request.json or {}
+    session_id = data.get("session_id")
+    session = SESSIONS.get(session_id)
+    if not session:
+        return jsonify({"error": "Sessão não encontrada"}), 404
+
+    selected_indices = data.get("selected_indices", [])
+    if not selected_indices:
+        return jsonify({"error": "Selecione ao menos uma camada para gerar o HTML"}), 400
+
+    fit_to_selection = bool(data.get("fit_to_selection", True))
+    mobile_mode = data.get("mobile_mode", "stack")
+    layer_configs = data.get("layer_configs", {})
+
+    try:
+        extractor: PSDExtractor = session["extractor"]
+        html_code = extractor.export_html_single_file(
+            selected_indices=selected_indices,
+            fit_to_selection=fit_to_selection,
+            responsive=True,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs
+        )
+
+        base_name = os.path.splitext(session["filename"])[0]
+        filename = f"{base_name}_banner_reconstrucao.html"
+
+        return send_file(
+            io.BytesIO(html_code.encode("utf-8")),
+            mimetype="text/html",
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Erro ao exportar HTML único: {e}", exc_info=True)
+        return jsonify({"error": f"Erro ao exportar HTML: {str(e)}"}), 500
+
+
+@app.route('/api/html/export/folder', methods=['POST'])
+def export_html_folder():
+    """Salva o pacote HTML do banner diretamente em uma pasta local do computador."""
+    data = request.json or {}
+    session_id = data.get("session_id")
+    session = SESSIONS.get(session_id)
+    if not session:
+        return jsonify({"error": "Sessão não encontrada"}), 404
+
+    output_dir = data.get("output_dir", "").strip()
+    if not output_dir:
+        return jsonify({"error": "Caminho da pasta de destino não informado"}), 400
+
+    selected_indices = data.get("selected_indices", [])
+    if not selected_indices:
+        return jsonify({"error": "Selecione ao menos uma camada para gerar o HTML"}), 400
+
+    embed_base64 = bool(data.get("embed_base64", False))
+    fit_to_selection = bool(data.get("fit_to_selection", True))
+    mobile_mode = data.get("mobile_mode", "stack")
+    layer_configs = data.get("layer_configs", {})
+
+    try:
+        extractor: PSDExtractor = session["extractor"]
+        saved_paths = extractor.export_html_to_directory(
+            output_dir=output_dir,
+            selected_indices=selected_indices,
+            embed_base64=embed_base64,
+            fit_to_selection=fit_to_selection,
+            responsive=True,
+            mobile_mode=mobile_mode,
+            layer_configs=layer_configs
+        )
+
+        return jsonify({
+            "success": True,
+            "saved_count": len(saved_paths),
+            "output_dir": output_dir,
+            "files": [os.path.basename(p) for p in saved_paths]
+        })
+    except Exception as e:
+        logger.error(f"Erro ao salvar HTML na pasta: {e}", exc_info=True)
+        return jsonify({"error": f"Erro ao salvar HTML na pasta: {str(e)}"}), 500
+
+
 def open_browser(port):
     """Abre o navegador automaticamente."""
     url = f"http://127.0.0.1:{port}"
