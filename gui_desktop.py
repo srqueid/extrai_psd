@@ -181,8 +181,8 @@ class PSDDesktopApp(tk.Tk):
         # Preenche treeview
         for layer in layers:
             idx = layer["index"]
-            # Marca por padrão camadas válidas
-            default_checked = layer["has_pixels"] and not layer["is_group"]
+            # Marca por padrão camadas válidas e visíveis conforme o PSD
+            default_checked = layer["has_pixels"] and not layer["is_group"] and layer.get("visible", True)
             self.layer_check_vars[idx] = default_checked
 
             check_mark = "☑" if default_checked else "☐"
@@ -441,7 +441,7 @@ class PSDDesktopApp(tk.Tk):
 
     def _export_html_zip_thread(self, save_path, selected):
         try:
-            zip_buf = self.extractor.export_html_to_zip(selected_indices=selected, responsive=True)
+            zip_buf = self.extractor.export_html_to_zip(selected_indices=selected, fit_to_selection=False, responsive=True)
             with open(save_path, "wb") as f:
                 f.write(zip_buf.getvalue())
 

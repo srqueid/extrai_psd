@@ -328,7 +328,7 @@ class PSDExtractor:
         selected_indices: List[int],
         embed_base64: bool = False,
         images_dir_rel: str = "images",
-        fit_to_selection: bool = True,
+        fit_to_selection: bool = False,
         responsive: bool = True,
         mobile_mode: str = "stack",
         layer_configs: Optional[Dict[str, Any]] = None,
@@ -470,10 +470,16 @@ class PSDExtractor:
             # Posição relativa ao artboard definido
             rel_left = info["left"] - origin_x
             rel_top = info["top"] - origin_y
-            opacity = info.get("opacity", 100) / 100.0
+            raw_opacity = info.get("opacity", 100)
             blend = blend_mode_map.get(info.get("blend_mode", "normal").lower(), "normal")
 
-            # Cálculo proporcional para responsividade fluida mantendo proporção 1:1 exata
+            # A imagem PNG extraída de layer.composite() já incorpora a opacidade e máscaras originais do PSD.
+            # Aplicamos opacity no CSS apenas caso o usuário tenha definido um override em layer_configs.
+            custom_opacity = cfg.get("opacity")
+            css_opacity_line = f"\n  opacity: {float(custom_opacity):.2f};" if custom_opacity is not None else ""
+            css_opacity_m_line = f"\n  opacity: {float(custom_opacity):.2f} !important;" if custom_opacity is not None else ""
+
+            # Cálculo proporcional para responsividade fluida mantendo proporção 1:1 exata conforme o PSD
             left_pct = (rel_left / artboard_w) * 100.0
             top_pct = (rel_top / artboard_h) * 100.0
             w_pct = (w / artboard_w) * 100.0
@@ -492,8 +498,7 @@ class PSDExtractor:
   top: {top_pct:.4f}%;
   width: {w_pct:.4f}%;
   height: {h_pct:.4f}%;
-  z-index: {z_idx};
-  opacity: {opacity:.2f};
+  z-index: {z_idx};{css_opacity_line}
   mix-blend-mode: {blend};
   display: block;
 }}
@@ -518,8 +523,7 @@ class PSDExtractor:
   top: {top_pct:.4f}% !important;
   width: {w_pct:.4f}% !important;
   height: {h_pct:.4f}% !important;
-  z-index: {z_idx} !important;
-  opacity: {opacity:.2f} !important;
+  z-index: {z_idx} !important;{css_opacity_m_line}
   mix-blend-mode: {blend} !important;
   display: block !important;
 }}
@@ -532,8 +536,7 @@ class PSDExtractor:
   left: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  z-index: 0 !important;
-  opacity: {opacity:.2f} !important;
+  z-index: 0 !important;{css_opacity_m_line}
   display: block !important;
   pointer-events: none !important;
 }}
@@ -561,8 +564,7 @@ class PSDExtractor:
   max-width: 100% !important;
   height: auto !important;
   order: {mobile_order} !important;
-  z-index: {z_idx} !important;
-  opacity: {opacity:.2f} !important;
+  z-index: {z_idx} !important;{css_opacity_m_line}
   mix-blend-mode: {blend} !important;
   display: block !important;
   {align_style}
@@ -590,7 +592,7 @@ class PSDExtractor:
              data-y="{rel_top}"
              data-w="{w}"
              data-h="{h}"
-             data-opacity="{int(opacity * 100)}%"
+             data-opacity="{raw_opacity}%"
              title="{info['name']} [{device_badge}] ({w}×{h}px)">
           <img src="{img_src}" alt="{info['name']}" loading="lazy" />
         </div>"""
@@ -896,7 +898,7 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
     def export_html_to_zip(
         self,
         selected_indices: List[int],
-        fit_to_selection: bool = True,
+        fit_to_selection: bool = False,
         responsive: bool = True,
         mobile_mode: str = "stack",
         layer_configs: Optional[Dict[str, Any]] = None
@@ -960,7 +962,7 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
     def export_html_single_file(
         self,
         selected_indices: List[int],
-        fit_to_selection: bool = True,
+        fit_to_selection: bool = False,
         responsive: bool = True,
         mobile_mode: str = "stack",
         layer_configs: Optional[Dict[str, Any]] = None,
@@ -986,7 +988,7 @@ body.view-mobile {mobile_css_content.replace(chr(10), chr(10) + 'body.view-mobil
         output_dir: str,
         selected_indices: List[int],
         embed_base64: bool = False,
-        fit_to_selection: bool = True,
+        fit_to_selection: bool = False,
         responsive: bool = True,
         mobile_mode: str = "stack",
         layer_configs: Optional[Dict[str, Any]] = None

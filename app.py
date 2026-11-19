@@ -301,8 +301,8 @@ def get_html_preview(session_id):
     if request.method == 'POST':
         data = request.json or {}
         selected_indices = data.get("selected_indices")
-        fit_to_selection = bool(data.get("fit_to_selection", True))
-        mobile_mode = data.get("mobile_mode", "stack")
+        fit_to_selection = bool(data.get("fit_to_selection", False))
+        mobile_mode = data.get("mobile_mode", "proportional")
         layer_configs = data.get("layer_configs", {})
     else:
         # GET via query parameters
@@ -314,14 +314,14 @@ def get_html_preview(session_id):
                 selected_indices = None
         else:
             selected_indices = None
-        fit_to_selection = request.args.get("fit", "true").lower() != "false"
-        mobile_mode = request.args.get("mobile_mode", "stack")
+        fit_to_selection = request.args.get("fit", "false").lower() == "true"
+        mobile_mode = request.args.get("mobile_mode", "proportional")
         layer_configs = {}
 
-    # Se nenhum índice foi informado, usa todas as camadas válidas com pixels
+    # Se nenhum índice foi informado, usa todas as camadas visíveis com pixels conforme o PSD
     if selected_indices is None:
         layers = extractor.get_layers_info()
-        selected_indices = [l["index"] for l in layers if l["has_pixels"] and not l["is_group"]]
+        selected_indices = [l["index"] for l in layers if l["has_pixels"] and not l["is_group"] and l.get("visible", True)]
 
     try:
         html_code, _, _ = extractor.generate_renderable_html(
@@ -347,8 +347,8 @@ def get_html_code(session_id):
 
     data = request.json or {}
     selected_indices = data.get("selected_indices", [])
-    fit_to_selection = bool(data.get("fit_to_selection", True))
-    mobile_mode = data.get("mobile_mode", "stack")
+    fit_to_selection = bool(data.get("fit_to_selection", False))
+    mobile_mode = data.get("mobile_mode", "proportional")
     layer_configs = data.get("layer_configs", {})
 
     try:
@@ -384,8 +384,8 @@ def export_html_zip():
     if not selected_indices:
         return jsonify({"error": "Selecione ao menos uma camada para gerar o HTML"}), 400
 
-    fit_to_selection = bool(data.get("fit_to_selection", True))
-    mobile_mode = data.get("mobile_mode", "stack")
+    fit_to_selection = bool(data.get("fit_to_selection", False))
+    mobile_mode = data.get("mobile_mode", "proportional")
     layer_configs = data.get("layer_configs", {})
 
     try:
@@ -425,8 +425,8 @@ def export_html_single():
     if not selected_indices:
         return jsonify({"error": "Selecione ao menos uma camada para gerar o HTML"}), 400
 
-    fit_to_selection = bool(data.get("fit_to_selection", True))
-    mobile_mode = data.get("mobile_mode", "stack")
+    fit_to_selection = bool(data.get("fit_to_selection", False))
+    mobile_mode = data.get("mobile_mode", "proportional")
     layer_configs = data.get("layer_configs", {})
 
     try:
@@ -471,8 +471,8 @@ def export_html_folder():
         return jsonify({"error": "Selecione ao menos uma camada para gerar o HTML"}), 400
 
     embed_base64 = bool(data.get("embed_base64", False))
-    fit_to_selection = bool(data.get("fit_to_selection", True))
-    mobile_mode = data.get("mobile_mode", "stack")
+    fit_to_selection = bool(data.get("fit_to_selection", False))
+    mobile_mode = data.get("mobile_mode", "proportional")
     layer_configs = data.get("layer_configs", {})
 
     try:
